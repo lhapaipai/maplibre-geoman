@@ -16,7 +16,6 @@ export class MaplibreSource extends BaseSource<ml.GeoJSONSource> {
   sourceInstance: ml.GeoJSONSource | null;
 
   pendingUpdateStorage: GeoJsonDiffStorage | null = null;
-  mlSourceDiff: ml.GeoJSONSourceDiff | null = null
   updateTimeout: null | number = null;
 
 
