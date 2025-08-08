@@ -27,7 +27,7 @@ import type {
   UpdateStorage,
 } from '@/main.ts';
 import { shapeNames } from '@/modes/draw/base.ts';
-import { fixGeoJsonFeature } from '@/utils/features.ts';
+import { exportShapeProperties, fixGeoJsonFeature } from '@/utils/features.ts';
 import { getGeoJsonBounds } from '@/utils/geojson.ts';
 import { isMapPointerEvent } from '@/utils/guards/map.ts';
 import { includesWithType, typedKeys, typedValues } from '@/utils/typing.ts';
@@ -37,9 +37,10 @@ import log from 'loglevel';
 
 
 export const SOURCES = {
+  // order matters here, layers order will be aligned according to these items
+  // standby: `${gmPrefix}_standby`, // used in pro version only
   main: `${gmPrefix}_main`,
   temporary: `${gmPrefix}_temporary`,
-  standby: `${gmPrefix}_standby`,
 } as const;
 
 export const FEATURE_ID_PROPERTY = '_gmid' as const;
@@ -436,7 +437,10 @@ export class Features {
     } = { allowedShapes: undefined },
   ): GeoJsonShapeFeatureCollection {
     return this.asGeoJsonFeatureCollection({
-      sourceNames: [SOURCES.main, SOURCES.standby],
+      sourceNames: [
+        SOURCES.main,
+        // SOURCES.standby, // used in pro version only
+      ],
       shapeTypes: allowedShapes ? allowedShapes : [...shapeNames],
     });
   }
@@ -481,7 +485,14 @@ export class Features {
           .filter((feature) => !!feature)
           .forEach((feature) => {
             if (shapeTypes === undefined || shapeTypes.includes(feature.properties.shape)) {
-              resultFeatureCollection.features.push(feature);
+              const shapeProperties = this.featureStore.has(feature.properties._gmid ?? '') ? exportShapeProperties(this.featureStore.get(feature.properties._gmid!)!): {};
+              resultFeatureCollection.features.push({
+                ...feature,
+                properties: {
+                  ...feature.properties,
+                  ...shapeProperties
+                }
+              });
             }
           });
       }
@@ -554,12 +565,12 @@ export class Features {
   createLayers(): Array<BaseLayer> {
     const layers: Array<BaseLayer> = [];
 
-    typedKeys(this.gm.options.layerStyles).forEach((shapeName) => {
-      typedKeys(this.gm.options.layerStyles[shapeName]).forEach((sourceName) => {
+    typedKeys(this.sources).forEach((sourceName) => {
+      typedKeys(this.gm.options.layerStyles).forEach((shapeName) => {
         const styles = this.gm.options.layerStyles[shapeName][sourceName];
         styles.forEach((partialStyle) => {
           const layer = this.createGenericLayer({
-            layerId: `${sourceName}-${shapeName}-${partialStyle.type}-layer`,
+            layerId: `${sourceName}-${shapeName}__${partialStyle.type}-layer`,
             partialStyle,
             shape: shapeName,
             sourceName,
